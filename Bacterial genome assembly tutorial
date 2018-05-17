@@ -1,0 +1,138 @@
+Bacterial genome assembly tutorial
+This tutorial will serve as an example of how to use free and open-source genome assembly and secondary scaffolding tools to generate high quality assemblies of bacterial sequence data. The bacterial sample used in this tutorial will be referred to simply as “Species” since it is live data. This data is paired-end data, meaning that there are forward and reverse reads, which we will designate as Sample_R1.fastq and Sample_R2.fastq, respectively.
+
+Software download links:
+
+Sickle
+ABySS
+SOAPdenovo
+SPAdes
+QUAST
+SSPACE
+AlignGraph
+
+Assembly tutorial directory
+
+/common/Assembly_Tutorial
+Sickle: Quality control on raw reads
+
+The first step is to perform quality control on the reads using sickle. To run the program we will use the sickle command. Since our reads are paired-end reads, we indicate this with the pe option. The -f flag designates the input file containing the forward reads, -r the input file containing the reverse reads, -o the output file containing the trimmed forward reads, -p the output file containing the trimmed reverse reads, and -s the output file containing trimmed singles. The -q flag designates the minimum quality, -l the minimum read length, and -t designates the type of read.
+
+sickle pe -f /common/Assembly_Tutorial/Sample_R1.fastq -r /common/Assembly_Tutorial/Sample_R2.fastq -t sanger -o Sample_1.fastq -p Sample_2.fastq -s Sample_s.fastq -q 30 -l 45
+The trimmed quality control files are located in /common/Assembly_Tutorial/Quality_Control and the script to perform the quality control is located at /common/Assembly_Tutorial/Quality_Control/Sample_QC.sh.
+
+ABySS: de novo sequence assembler
+
+ABySS is the first assembly program we will use to assemble our trimmed reads. Since our reads are paired-end reads, to run the assembler we will use the abyss-pe command. We will use the parameters k for the size of the kmer, name for the output file prefix, in for the paths to the forward/reverse trimmed reads, and se for the path to the singles file, np for number of processors, which in this case should be as same as number of processors declared in the header of your shell script.
+
+abyss-pe np=8 k=31 name=Sample_Kmer31 in='/common/Assembly_Tutorial/Quality_Control/Sample_1.fastq /common/Assembly_Tutorial/Quality_Control/Sample_2.fastq' se='/common/Assembly_Tutorial/Quality_Control/Sample_s.fastq'
+# repeat for k=35, k=41, etc
+The kmers used in this example can be viewed as a starting point to get an idea of what kmer would best assemble the data. The assembly output files are located in /common/Assembly_Tutorial/Assembly/ABySS and the script to perform assembly is located at /common/Assembly_Tutorial/Assembly/Sample_assembly.sh. Note that this script also includes the assembly commands for SOAP and SPAdes.
+
+SOAPdenovo: de novo sequence assembler
+
+SOAPdenovo is another de novo sequence assembler. Unlike the other assemblers, SOAP uses a config file to pass information about the sequences into the program. The configuration file is shown below. Notable fields include average insert size and read length, which differ depending on the sequencing technology, and q1, q2, and q; the paths to the forward, reverse and singles trimmed reads.
+
+#maximal read length
+max_rd_len=250
+[LIB]
+#average insert size
+avg_ins=550
+#if sequence needs to be reversed
+reverse_seq=0
+#in which part(s) the reads are used
+asm_flags=3
+#use only first 250 bps of each read
+rd_len_cutoff=250
+#in which order the reads are used while scaffolding
+rank=1
+# cutoff of pair number for a reliable connection (at least 3 for short insert size)
+pair_num_cutoff=3
+#minimum aligned length to contigs for a reliable read location (at least 32 for short insert size)
+map_len=32
+# path to genes
+q1=/common/Assembly_Tutorial/Quality_Control/Sample_1.fastq
+q2=/common/Assembly_Tutorial/Quality_Control/Sample_2.fastq
+q=/common/Assembly_Tutorial/Quality_Control/Sample_s.fastq
+To run the assembler we will use the SOAPdenovo-63mer command with the all option (to perform kmer graph construction, contig error correction, mapping of reads to contigs, and scaffolding), -s for the path to the config file, -K for the size of the kmer, -o for the output prefix, 1 for assembly log, and 2 for assembly errors.
+
+SOAPdenovo-63mer all -s /common/Assembly_Tutorial/Assembly/Sample.config -K 31 -R -o graph_Sample_31 1>ass31.log 2>ass31.err
+# repeat for k=35, k=41, etc
+The assembly output files are located in /common/Assembly_Tutorial/Assembly/SOAP.
+
+SPAdes: de Bruijn graph based assembler
+
+The last assembler we will run is SPAdes. SPAdes is different from the other assemblers in that it generates a final assembly from multiple kmers. A list of kmers is automatically selected by SPAdes using the maximum read length of the input data, and each individual kmer contributes to the final assembly. To run SPAdes we will use the spades.py command with the --careful option to minimize the number of mismatches in the contigs, -o for the output folder, -1 for the path to the forward reads, -2 for the path to the reverse reads, and -s for the path to the singles reads. If desired, a list of kmers can be specified with the -k flag which will override automatic kmer selection.
+
+spades.py --careful -o SPAdes_out -1 /common/Assembly_Tutorial/Quality_Control/Sample_1.fastq -2 /common/Assembly_Tutorial/Quality_Control/Sample_2.fastq -s /common/Assembly_Tutorial/Quality_Control/Sample_s.fastq
+The assembly output files are located in /common/Assembly_Tutorial/Assembly/SPAdes.
+
+QUAST: assembly statistics
+
+Now that we have several assemblies, it’s time to analyze the quality of each assembly. ABySS and SOAPdenovo both have their own statistics output, but for consistency, we will be using the program QUAST. The statistics we are most interested in are number of contigs, total length, and N50. A good assembly would have a low number of contigs, a total length that makes sense for the species, and a high N50 value. To run quast on all of our final assembly files we will run the following commands, with the only parameters used being the name of the assembly file(s) and output directory.
+
+# ABySS statistics
+python /opt/bioinformatics/quast-2.3/quast.py /common/Assembly_Tutorial/Assembly/ABySS/Sample_Kmer*-scaffolds.fa -o ABySS
+# SOAPdenovo statistics
+python /opt/bioinformatics/quast-2.3/quast.py /common/Assembly_Tutorial/Assembly/SOAP/graph_Sample_*.scafSeq -o SOAP
+# SPAdes statistics
+python /opt/bioinformatics/quast-2.3/quast.py /common/Assembly_Tutorial/Assembly/SPAdes/scaffolds.fasta -o SPAdes
+Abyss results:
+
+Assembly	# contigs	Largest contig	Total length	GC (%)	N50
+Sample_Kmer31-scaffolds	363	86593	2779506	32.76	14714
+Sample_Kmer35-scaffolds	342	86909	2787431	32.75	16801
+Sample_Kmer41-scaffolds	330	84960	2794086	32.76	17579
+SOAP results:
+
+Assembly	# contigs	Largest contig	Total length	GC (%)	N50
+graph_Sample_31.scafSeq	276	103125	3574101	32.44	26176
+graph_Sample_35.scafSeq	246	86844	3543834	32.46	27766
+graph_Sample_41.scafSeq	214	99593	3438095	32.46	36169
+SPAdes results:
+
+Assembly	# contigs	Largest contig	Total length	GC (%)	N50
+scaffolds	59	255551	2880184	32.65	147660
+From the data, it’s clear that SPAdes performed the best. SPAdes generated only 59 contigs as compared to ~200 from SOAP and ~300 from ABySS. Additionally, the largest contig size and N50 values were the highest. Finally, the total number of base pairs was closest to the number of base pairs in a different strain of this bacteria that has already been sequenced. We will proceed to secondary scaffolding with this assembly, located in /common/Assembly_Tutorial/Assembly/SPAdes/scaffolds.fasta.
+
+QUAST’s output consists of a folder containing results in multiple formats within each of the three assembly directories. The script to run QUAST is located at /common/Assembly_Tutorial/QUAST/Sample_quast.sh.
+
+SSPACE Standard
+
+SSPACE is a script able to extend and scaffold pre-assembled contigs. SSPACE requires a library file containing the paths to the paired end reads, average insert size, and type of data. This file is located at /common/Assembly_Tutorial/Scaffolding/Species_library.txt.
+
+We will run SSPACE using a perl command with the parameters -l for the species library, -s for the fasta file containing assembled scaffolds, -b for the output prefix, and -T for the number of threads.
+
+perl /opt/bioinformatics/SSPACE-STANDARD/SSPACE_Standard_v3.0.pl -l /common/Assembly_Tutorial/Species_library.txt -s /common/Assembly_Tutorial/Assembly/SPAdes/scaffolds.fasta -b SSPACE -T 16
+The output file is located at /common/Assembly_Tutorial/Scaffolding/SSPACE/Sample_SSPACE.final.scaffolds.fasta. The script to run SSPACE is located at /common/Assembly_Tutorial/Scaffolding/Sample_sspace.sh.
+
+We then will run QUAST on this file to compare it with previous assemblies. This time, we will run QUAST over the command line without a submit script, since it is only one line.
+
+cd /common/Assembly_Tutorial/QUAST
+python /opt/bioinformatics/quast-2.3/quast.py /common/Assembly_Tutorial/Scaffolding/SSPACE/SSPACE.final.scaffolds.fasta -o SSPACE
+Quast results:
+
+Assembly	# contigs	Largest contig	Total length	GC (%)	N50
+Sample_SSPACE.final.scaffolds	57	255551	2880249	32.65	147660
+AlignGraph on close relation (different strain of species)
+
+AlignGraph is the final step in this assembly pipeline. From the documentation, “AlignGraph is a software that extends and joins contigs or scaffolds by reassembling them with help provided by a reference genome of a closely related organism.” By using a reference genome of a closely related organism, it can improve the assembly.
+
+To run AlignGraph we first need to convert the raw reads from fastq format to fasta format. There are many ways to do this, but one of the most efficient ways is to use a sed command to parse out the reads from the fastq file:
+
+sed -n '1~4s/^@/>/p;2~4p' /common/Assembly_Tutorial/Sample_R1.fastq > Sample_R1.fasta
+sed -n '1~4s/^@/>/p;2~4p' /common/Assembly_Tutorial/Sample_R2.fastq > Sample_R2.fasta
+Then we will run AlignGraph using the AlignGraph command and the parameters --read1 for the forward read in fasta format, --read2 for the reverse read in fasta format, --contig for the path to the assembly we are rescaffolding, and --genome for the path to the reference genome we are using for rescaffolding. The genome we are using is named AlignGraph_genome.fasta, again to protect the live data.
+
+Additionally, we have to define the --distanceLow and --distanceHigh parameters. From the documentation, distanceLow is the maximum of [insert size – 1000, insert size] and distanceHigh [insert size + 1000]. The insert size of this dataset is 550, giving us a distanceLow of 550 and distanceHigh of 1550. Finally, we define the output file names using --extendedContigs and --remainingContigs. –remainingContigs will contain the final assembly.
+
+AlignGraph --read1  /common/Assembly_Tutorial/Scaffolding/Sample_R1.fasta --read2 /common/Assembly_Tutorial/Scaffolding/Sample_R1.fasta --contig /common/Assembly_Tutorial/Scaffolding/SSPACE/SSPACE.final.scaffolds.fasta --genome /common/Assembly_Tutorial/Scaffolding/AlignGraph_genome.fasta --distanceLow 550 --distanceHigh 1550 --extendedContig Species_extendedContigs.fa --remainingContig Species_remainingContigs.fa
+The output file is located at /common/Assembly_Tutorial/Scaffolding/AlignGraph/Sample_remainingContigs.fa. The script to run AlignGraph is located at /common/Assembly_Tutorial/Scaffolding/Sample_aligngraph.sh.
+
+Then QUAST:
+
+cd /common/Assembly_Tutorial/QUAST
+python /opt/bioinformatics/quast-2.3/quast.py /common/Assembly_Tutorial/Scaffolding/AlignGraph/Species_remainingContigs.fa -o AlignGraph
+Assembly	# contigs	Largest contig	Total length	GC (%)	N50
+Species_remainingContigs	57	255551	2880249	32.65	147660
+Unfortunately, this dataset was not improved by AlignGraph with this specific genome, but this tutorial still illustrates the general idea.
