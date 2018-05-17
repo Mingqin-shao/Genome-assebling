@@ -1,0 +1,12 @@
+Do it yourself guide to genome assembly
+Bilal Wajid and Erchin Serpedin
+Corresponding author. Bilal Wajid, Department of Electrical and Computer Engineering at Texas A&M University (TAMU), College Station, TX, USA.
+Tel.: 001-956-326-0348; Fax: 001-956-326-2439; E-mail: bilalwajidabbas@hotmail.com
+Abstract
+Bioinformatics skills required for genome sequencing often represent a significant hurdle for many researchers working in
+computational biology. This humble effort highlights the significance of genome assembly as a research area, focuses on its
+need to remain accurate, provides details about the characteristics of the raw data, examines some key metrics, emphasizes
+some tools and draws attention to a generic tutorial with example data that outlines the whole pipeline for next-generation
+sequencing. The article concludes by pointing out some major future research problems.
+Key words: genome assembly; next-generation sequencing; comparative assembly; de novo assembly; de-Bruijn graphs;
+Eulerian path
